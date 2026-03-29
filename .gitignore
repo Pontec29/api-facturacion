@@ -1,0 +1,15 @@
+# Archivos de comprobantes y almacenamiento temporal
+storage/comprobantes/
+storage/**/*.xml
+storage/**/*.zip
+
+# Dependencias de composer
+vendor/
+
+# Certificados y archivos de configuración sensibles
+.env
+.php-cs-fixer.cache
+.phpunit.result.cache
+
+# Otros archivos generados
+composer.phar
