@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Nota de Movimiento</title>
+    <style>
+        body { font-family: 'Helvetica', sans-serif; font-size: 11px; color: #333; margin: 0; padding: 0; }
+        .header { background: #f8fafc; padding: 20px; border-bottom: 2px solid #3b82f6; }
+        .title { font-size: 18px; font-weight: bold; color: #1e293b; margin: 0; }
+        .info-grid { display: table; width: 100%; margin-top: 15px; }
+        .info-col { display: table-cell; width: 50%; vertical-align: top; }
+        .table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        .table th { background: #3b82f6; color: white; padding: 8px; text-align: left; }
+        .table td { padding: 8px; border-bottom: 1px solid #e2e8f0; }
+        .footer { position: fixed; bottom: 30px; width: 100%; text-align: center; font-size: 9px; color: #94a3b8; }
+        .badge { display: inline-block; padding: 4px 8px; border-radius: 4px; font-weight: bold; text-transform: uppercase; }
+        .badge-salida { background: #fee2e2; color: #b91c1c; }
+        .badge-entrada { background: #dcfce7; color: #15803d; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="info-grid">
+            <div class="info-col">
+                <h1 class="title">NOTA DE {{ tipo_movimiento }}</h1>
+                <p><strong>N°:</strong> {{ serie }}-{{ numero }}</p>
+                <p><strong>Fecha:</strong> {{ fecha_emision }}</p>
+            </div>
+            <div class="info-col" style="text-align: right;">
+                <p><strong>{{ empresa.razonSocial }}</strong></p>
+                <p>{{ empresa.direccion }}</p>
+                <p>RUC: {{ empresa.ruc }}</p>
+            </div>
+        </div>
+    </div>
+
+    <div style="padding: 20px;">
+        <div class="info-grid">
+            <div class="info-col">
+                <p><strong>Almacén Origen:</strong> {{ almacen_origen ?: 'N/A' }}</p>
+                <p><strong>Almacén Destino:</strong> {{ almacen_destino ?: 'N/A' }}</p>
+            </div>
+            <div class="info-col">
+                <p><strong>Doc. Referencia:</strong> {{ documento_referencia ?: '-' }}</p>
+                <p><strong>Observación:</strong> {{ observacion ?: '-' }}</p>
+            </div>
+        </div>
+
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>SKU</th>
+                    <th>Producto</th>
+                    <th>Cant.</th>
+                    <th>UM</th>
+                    <th>Lote</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for d in detalles %}
+                <tr>
+                    <td>{{ d.producto_sku }}</td>
+                    <td>{{ d.producto_nombre }}</td>
+                    <td>{{ d.cantidad }}</td>
+                    <td>{{ d.unidad }}</td>
+                    <td>{{ d.lote ?: '-' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="footer">
+        Generado automáticamente por el Sistema POS 2026
+    </div>
+</body>
+</html>

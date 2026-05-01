@@ -39,6 +39,8 @@ if ($path === '/pdf') {
     exit;
 }
 
+
+
 // Endpoint / (raíz) => Flujo completo: firma + envío SUNAT + PDF
 handleFullFlow();
 
