@@ -1,0 +1,183 @@
+/* DISEÑO PREMIUM PARA FACTURACIÓN ELECTRÓNICA */
+@page {
+    margin: 0;
+}
+
+body {
+    font-family: 'Helvetica', 'Arial', sans-serif;
+    color: #1e293b;
+    margin: 0;
+    padding: 0;
+    font-size: 11px;
+    line-height: 1.5;
+}
+
+.white-bg {
+    background-color: #ffffff;
+}
+
+/* Variables de color se inyectan desde el HTML (:root) */
+
+.container {
+    padding: 40px;
+}
+
+/* Cabecera */
+.header-table {
+    margin-bottom: 30px;
+}
+
+.company-info h1 {
+    font-size: 24px;
+    font-weight: 800;
+    margin: 0;
+    color: var(--primary-color);
+    text-transform: uppercase;
+}
+
+.company-details {
+    color: #64748b;
+    font-size: 10px;
+    margin-top: 5px;
+}
+
+/* Recuadro de Comprobante (El "RUC - TIPO - NRO") */
+.document-box {
+    border: 2px solid var(--primary-color);
+    border-radius: 12px;
+    padding: 20px;
+    text-align: center;
+    background-color: #f8fafc;
+}
+
+.document-type {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--primary-color);
+    margin-bottom: 8px;
+    display: block;
+}
+
+.document-number {
+    font-size: 20px;
+    font-weight: 800;
+    letter-spacing: 1px;
+}
+
+/* Información de Cliente */
+.section-title {
+    background-color: #f1f5f9;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-weight: 700;
+    color: #334155;
+    margin-bottom: 10px;
+    text-transform: uppercase;
+    font-size: 9px;
+    letter-spacing: 0.5px;
+}
+
+.info-grid {
+    margin-bottom: 25px;
+}
+
+.info-label {
+    color: #64748b;
+    font-weight: 600;
+    width: 100px;
+}
+
+/* Tabla de Productos */
+.items-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 30px;
+}
+
+.items-table th {
+    background-color: var(--primary-color);
+    color: #ffffff;
+    padding: 10px 12px;
+    text-align: left;
+    font-size: 10px;
+    text-transform: uppercase;
+}
+
+.items-table td {
+    padding: 12px;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.items-table tr:nth-child(even) {
+    background-color: #f8fafc;
+}
+
+/* Totales */
+.totals-container {
+    width: 250px;
+    float: right;
+}
+
+.total-row {
+    padding: 5px 0;
+}
+
+.total-label {
+    text-align: right;
+    padding-right: 15px;
+    color: #64748b;
+}
+
+.total-value {
+    text-align: right;
+    font-weight: 600;
+    width: 100px;
+}
+
+.grand-total {
+    background-color: var(--primary-color);
+    color: #ffffff;
+    padding: 10px;
+    border-radius: 6px;
+    margin-top: 10px;
+}
+
+.grand-total .total-label {
+    color: #ffffff;
+    font-weight: 700;
+    font-size: 12px;
+}
+
+.grand-total .total-value {
+    font-size: 14px;
+    font-weight: 800;
+}
+
+/* Footer */
+.footer-section {
+    position: absolute;
+    bottom: 40px;
+    left: 40px;
+    right: 40px;
+    border-top: 1px solid #e2e8f0;
+    padding-top: 20px;
+}
+
+.hash-text {
+    font-family: monospace;
+    font-size: 8px;
+    color: #94a3b8;
+}
+
+.qr-code {
+    float: right;
+}
+
+/* Utilidades */
+.text-right {
+    text-align: right;
+}
+
+.bold {
+    font-weight: 700;
+}

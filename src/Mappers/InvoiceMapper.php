@@ -28,17 +28,25 @@ class InvoiceMapper
             ->setUrbanizacion($data['empresa']['urbanizacion'] ?? '-')
             ->setDireccion($data['empresa']['direccion'] ?? 'AV. SIEMPRE VIVA 123');
 
-        $company = (new Company())
-            ->setRuc($ruc)
-            ->setRazonSocial($data['empresa']['razon_social'] ?? 'EMPRESA TEST SAC')
-            ->setNombreComercial($data['empresa']['nombre_comercial'] ?? $data['empresa']['razon_social'] ?? 'TEST POS')
-            ->setAddress($address);
+        $company = new Company();
+        $company->setRuc($data['empresa']['ruc'] ?? '20000000000')
+            ->setRazonSocial($data['empresa']['razon_social'] ?? 'EMPRESA TEST')
+            ->setNombreComercial($data['empresa']['nombre_comercial'] ?? '')
+            ->setAddress((new Address())
+                ->setDireccion($data['empresa']['direccion'] ?? '-')
+                ->setDistrito($data['empresa']['distrito'] ?? 'LIMA')
+                ->setProvincia($data['empresa']['provincia'] ?? 'LIMA')
+                ->setDepartamento($data['empresa']['departamento'] ?? 'LIMA')
+                ->setUbigueo($data['empresa']['ubigeo'] ?? '150101')
+                ->setCodLocal($data['empresa']['cod_local'] ?? '0000'));
 
         // 2. Cliente
-        $client = (new Client())
-            ->setTipoDoc($data['cliente']['tipo_doc'] ?? '6')
-            ->setNumDoc($data['cliente']['num_doc'] ?? '20405060708')
-            ->setRznSocial($data['cliente']['nombre'] ?? 'CLIENTE DE PRUEBA');
+        $client = new Client();
+        $client->setTipoDoc($data['cliente']['tipo_doc'] ?? '1')
+            ->setNumDoc($data['cliente']['num_doc'] ?? '00000000')
+            ->setRznSocial($data['cliente']['nombre'] ?? 'CLIENTE VARIOS')
+            ->setAddress((new Address())
+                ->setDireccion($data['cliente']['direccion'] ?? '-'));
 
         // 3. Detalles (se procesan primero para acumular totales)
         $details = [];
@@ -76,37 +84,44 @@ class InvoiceMapper
         // 4. Comprobante
         $totalGravado = round((float)($data['venta']['total_gravado'] ?? $sumBaseIgv), 2);
         $totalIgv = round((float)($data['venta']['total_igv'] ?? $sumIgv), 2);
-        $totalVenta = round((float)($data['venta']['total'] ?? ($totalGravado + $totalIgv)), 2);
+        $total = round((float)($data['venta']['total'] ?? ($totalGravado + $totalIgv)), 2);
 
+        // 4. Crear factura y asignar totales
         $invoice = new Invoice();
-        $invoice->setUblVersion('2.1');
-        $invoice->setTipoOperacion('0101');
-        $invoice->setTipoDoc($data['venta']['tipo_comprobante'] ?? '01');
-        $invoice->setSerie($data['venta']['serie'] ?? 'F001');
-        $invoice->setCorrelativo($data['venta']['numero'] ?? '1');
-        $invoice->setFechaEmision(new DateTime($data['venta']['fecha_emision'] ?? 'now'));
-        $invoice->setTipoMoneda($moneda);
-        $invoice->setClient($client);
-        $invoice->setCompany($company);
+        $invoice->setUblVersion('2.1')
+            ->setTipoOperacion('0101') // Venta interna
+            ->setTipoDoc($data['venta']['tipo_comprobante'] ?? '01')
+            ->setSerie($data['venta']['serie'] ?? 'F001')
+            ->setCorrelativo($data['venta']['numero'] ?? '1')
+            ->setFechaEmision(new \DateTime($data['venta']['fecha_emision'] ?? 'now'))
+            ->setTipoMoneda($data['venta']['moneda'] ?? 'PEN')
+            ->setClient($client)
+            ->setCompany($company)
+            ->setMtoOperGravadas(number_format($totalGravado, 2, '.', ''))
+            ->setMtoOperExoneradas(number_format($data['venta']['total_exonerado'] ?? 0, 2, '.', ''))
+            ->setMtoOperInafectas(number_format($data['venta']['total_inafecto'] ?? 0, 2, '.', ''))
+            ->setMtoIGV(number_format($totalIgv, 2, '.', ''))
+            ->setTotalImpuestos(number_format($totalIgv, 2, '.', ''))
+            ->setValorVenta(number_format($totalGravado, 2, '.', ''))
+            ->setSubTotal(number_format($total, 2, '.', ''))
+            ->setMtoImpVenta(number_format($total, 2, '.', ''))
+            ->setDetails($details);
 
-        // Montos de cabecera
-        $invoice->setMtoOperGravadas($totalGravado);
-        $invoice->setMtoOperExoneradas(round((float)($data['venta']['total_exonerado'] ?? 0), 2));
-        $invoice->setMtoOperInafectas(round((float)($data['venta']['total_inafecto'] ?? 0), 2));
-        $invoice->setMtoIGV($totalIgv);
-        $invoice->setTotalImpuestos($totalIgv);
-        $invoice->setValorVenta($totalGravado);
-        $invoice->setSubTotal($totalVenta);
-        $invoice->setMtoImpVenta($totalVenta);
-
-        // Detalles
-        $invoice->setDetails($details);
+        // 5. Leyendas (Monto en letras)
+        $formatter = new \Luecano\NumeroALetras\NumeroALetras();
+        $totalLetras = $formatter->toInvoice($total, 2, $data['venta']['moneda'] === 'USD' ? 'DÓLARES' : 'SOLES');
+        
+        $invoice->setLegends([
+            (new Legend())
+                ->setCode('1000')
+                ->setValue($totalLetras)
+        ]);
 
         // Pago
         if (($data['venta']['forma_pago'] ?? 'CONTADO') === 'CONTADO') {
             $invoice->setFormaPago(new FormaPagoContado());
         } else {
-            $invoice->setFormaPago(new FormaPagoCredito($totalVenta));
+            $invoice->setFormaPago(new FormaPagoCredito($total));
             if (isset($data['venta']['cuotas'])) {
                 $cuotas = [];
                 foreach ($data['venta']['cuotas'] as $c) {

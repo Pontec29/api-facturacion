@@ -1,0 +1,156 @@
+<html>
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <style type="text/css">
+        :root {
+            --primary-color: {{ params.user.color|default('#1e40af') }};
+        }
+        {% include 'assets/style.css' %}
+    </style>
+</head>
+<body class="white-bg">
+    {% set cp = doc.company %}
+    {% set cl = doc.client %}
+    {% set moneda = doc.tipoMoneda|catalog('02') %}
+    {% set name = doc.tipoDoc|catalog('01') %}
+
+    <div class="container">
+        <!-- CABECERA: LOGO Y CAJA DE DOCUMENTO -->
+        <table width="100%" class="header-table">
+            <tr>
+                <td width="60%" valign="top">
+                    <div class="company-info">
+                        {% if params.system.logo %}
+                            <img src="{{ params.system.logo|image_b64 }}" height="60" style="margin-bottom: 15px;">
+                        {% endif %}
+                        <h1>{{ cp.razonSocial }}</h1>
+                        <div class="company-details">
+                            {{ cp.address.direccion }}<br>
+                            {{ params.user.header|raw }}
+                        </div>
+                    </div>
+                </td>
+                <td width="40%" valign="top">
+                    <div class="document-box">
+                        <span class="document-type">{{ name|upper }} ELECTRÓNICA</span>
+                        <div style="margin: 10px 0; font-size: 14px; font-weight: 600; color: #64748b;">R.U.C. {{ cp.ruc }}</div>
+                        <span class="document-number">{{ doc.serie }}-{{ doc.correlativo }}</span>
+                    </div>
+                </td>
+            </tr>
+        </table>
+
+        <!-- INFORMACIÓN DEL CLIENTE -->
+        <div class="section-title">Información del Cliente</div>
+        <table width="100%" class="info-grid">
+            <tr>
+                <td width="15%" class="info-label">Cliente:</td>
+                <td width="45%">{{ cl.rznSocial }}</td>
+                <td width="15%" class="info-label">{{ cl.tipoDoc|catalog('06') }}:</td>
+                <td width="25%">{{ cl.numDoc }}</td>
+            </tr>
+            <tr>
+                <td class="info-label">Fecha:</td>
+                <td>{{ doc.fechaEmision|date('d/m/Y H:i') }}</td>
+                <td class="info-label">Moneda:</td>
+                <td>{{ doc.tipoMoneda|catalog('021') }}</td>
+            </tr>
+            <tr>
+                <td class="info-label">Dirección:</td>
+                <td colspan="3">{% if cl.address %}{{ cl.address.direccion }}{% endif %}</td>
+            </tr>
+        </table>
+
+        <!-- TABLA DE ITEMS -->
+        <table class="items-table">
+            <thead>
+                <tr>
+                    <th width="10%">Cant.</th>
+                    <th width="10%">Unid.</th>
+                    <th width="50%">Descripción</th>
+                    <th width="15%" class="text-right">V. Unit.</th>
+                    <th width="15%" class="text-right">Total</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for det in doc.details %}
+                <tr>
+                    <td>{{ det.cantidad|n_format }}</td>
+                    <td>{{ det.unidad }}</td>
+                    <td>
+                        <span class="bold">{{ det.descripcion }}</span>
+                        {% if det.codProducto %}<br><small style="color: #64748b;">Cód: {{ det.codProducto }}</small>{% endif %}
+                    </td>
+                    <td class="text-right">{{ moneda }} {{ det.mtoValorUnitario|n_format }}</td>
+                    <td class="text-right">{{ moneda }} {{ det.mtoValorVenta|n_format }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <!-- TOTALES Y LEYENDAS -->
+        <table width="100%">
+            <tr>
+                <td width="60%" valign="top">
+                    {% if doc.legends %}
+                        <div style="font-size: 9px; color: #64748b; margin-top: 10px;">
+                            <strong>SON:</strong> {{ legend(doc.legends, '1000') }}<br>
+                            {% for leg in doc.legends %}
+                                {% if leg.code != '1000' %}
+                                    {{ leg.value }}<br>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                    
+                    {% if params.user.mostrar_cuentas and params.user.cuentas %}
+                        <div class="section-title" style="margin-top: 20px;">Cuentas Bancarias</div>
+                        <table width="100%" style="font-size: 9px;">
+                            {% for cuenta in params.user.cuentas %}
+                                <tr>
+                                    <td width="30%"><strong>{{ cuenta.banco }}</strong></td>
+                                    <td>{{ cuenta.numero }} ({{ cuenta.moneda }})</td>
+                                </tr>
+                            {% endfor %}
+                        </table>
+                    {% endif %}
+                </td>
+                <td width="40%" valign="top">
+                    <table width="100%">
+                        <tr class="total-row">
+                            <td class="total-label">Op. Gravada:</td>
+                            <td class="total-value">{{ moneda }} {{ doc.mtoOperGravadas|n_format }}</td>
+                        </tr>
+                        <tr class="total-row">
+                            <td class="total-label">I.G.V. (18%):</td>
+                            <td class="total-value">{{ moneda }} {{ doc.mtoIGV|n_format }}</td>
+                        </tr>
+                        <tr class="total-row grand-total">
+                            <td class="total-label">Total:</td>
+                            <td class="total-value">{{ moneda }} {{ doc.mtoImpVenta|n_format }}</td>
+                        </tr>
+                    </table>
+                </td>
+            </tr>
+        </table>
+
+        <!-- FOOTER -->
+        <div class="footer-section">
+            <table width="100%">
+                <tr>
+                    <td width="80%">
+                        <div class="hash-text">
+                            {% if params.system.hash %}Código Hash: {{ params.system.hash }}<br>{% endif %}
+                            Representación impresa de la {{ name|upper }} ELECTRÓNICA.<br>
+                            {{ params.user.resolucion }}
+                        </div>
+                    </td>
+                    <td width="20%" align="right">
+                        <img src="{{ qrCode(doc)|image_b64('svg+xml') }}" width="{{ params.user.qr_size|default('80') }}">
+                    </td>
+                </tr>
+            </table>
+        </div>
+    </div>
+</body>
+</html>

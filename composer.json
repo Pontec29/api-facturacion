@@ -7,6 +7,8 @@
         "firebase/php-jwt": "^6.0",
         "greenter/greenter": "^5.2",
         "greenter/report": "^5.0",
+        "dompdf/dompdf": "^2.0",
+        "luecano/numero-a-letras": "^3.0",
         "monolog/monolog": "^3.0"
     },
     "autoload": {
