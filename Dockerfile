@@ -1,19 +1,23 @@
-FROM php:8.2-fpm-alpine
+FROM php:8.2-apache
 
-# Instalar dependencias del sistema y extensiones de PHP requeridas por Greenter
-RUN apk add --no-cache \
+# Instalar dependencias del sistema requeridas por Greenter
+RUN apt-get update && apt-get install -y \
     libxml2-dev \
-    openssl-dev \
-    bash \
-    icu-dev \
     libzip-dev \
-    oniguruma-dev \
-    zlib-dev \
     libpng-dev \
-    libjpeg-turbo-dev \
-    freetype-dev \
-    curl-dev
+    libjpeg-dev \
+    libfreetype6-dev \
+    libicu-dev \
+    libcurl4-openssl-dev \
+    pkg-config \
+    libssl-dev \
+    libonig-dev \
+    zip \
+    unzip \
+    git \
+    && rm -rf /var/lib/apt/lists/*
 
+# Configurar y descargar extensiones de PHP
 RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
     && docker-php-ext-install -j$(nproc) \
     soap \
@@ -27,17 +31,23 @@ RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
     curl \
     fileinfo
 
+# Habilitar mod_rewrite de Apache
+RUN a2enmod rewrite
+
+# Cambiar el DocumentRoot a la carpeta public
+ENV APACHE_DOCUMENT_ROOT /var/www/html/public
+RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/*.conf
+RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/apache2.conf /etc/apache2/conf-available/*.conf
+
 # Instalar Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
 WORKDIR /var/www/html
-
-# Copiar archivos del proyecto
 COPY . .
 
 # Instalar dependencias de composer
-RUN composer update --no-dev --optimize-autoloader --no-audit --ignore-platform-reqs -vvv
+RUN composer update --no-dev --optimize-autoloader --no-audit --ignore-platform-reqs
 
-EXPOSE 9000
+EXPOSE 80
 
-CMD ["php-fpm"]
+CMD ["apache2-foreground"]
