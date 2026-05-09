@@ -5,11 +5,25 @@
  * Refacturado a Arquitectura de Servicios
  */
 
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
-error_reporting(E_ALL);
-
 require dirname(__DIR__) . '/vendor/autoload.php';
+
+// Cargar variables de entorno desde .env si existe
+if (file_exists(dirname(__DIR__) . '/.env')) {
+    $lines = file(dirname(__DIR__) . '/.env', FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    foreach ($lines as $line) {
+        if (strpos(trim($line), '#') === 0) continue;
+        list($name, $value) = explode('=', $line, 2);
+        $_ENV[trim($name)] = trim($value);
+        putenv(trim($name) . '=' . trim($value));
+    }
+}
+
+// Configuración de errores según el entorno
+$isProd = getenv('APP_ENV') === 'production';
+ini_set('display_errors', $isProd ? 0 : 1);
+ini_set('display_startup_errors', $isProd ? 0 : 1);
+error_reporting($isProd ? E_ALL & ~E_DEPRECATED & ~E_STRICT : E_ALL);
+
 
 use App\Services\SunatService;
 use App\Services\StorageService;
@@ -21,7 +35,7 @@ ob_start(); // Capturar cualquier salida accidental (warnings, etc)
 
 // --- SEGURIDAD: Validación de API Key ---
 $apiKey = $_SERVER['HTTP_X_API_KEY'] ?? '';
-$secret = 'mi_llave_secreta_pos_2026'; // Esto debería ir en un .env en producción
+$secret = getenv('API_SECRET') ?: 'mi_llave_secreta_pos_2026';
 
 if ($apiKey !== $secret) {
     http_response_code(401);
@@ -39,7 +53,17 @@ if ($path === '/pdf') {
     exit;
 }
 
+// Endpoint /void => Comunicación de Baja (Anulaciones)
+if ($path === '/void') {
+    handleVoid();
+    exit;
+}
 
+// Endpoint /summary => Resumen Diario de Boletas
+if ($path === '/summary') {
+    handleSummary();
+    exit;
+}
 
 // Endpoint / (raíz) => Flujo completo: firma + envío SUNAT + PDF
 handleFullFlow();
@@ -106,19 +130,23 @@ function handleFullFlow(): void
             throw new Exception('No JSON data received');
         }
 
-        // 1. Obtener Certificado (Local fallback por ahora, escalable a URL)
+        // 1. Obtener Certificado
         $ruc = $data['empresa']['ruc'] ?? '20000000001';
-        $certPath = dirname(__DIR__) . "/certs/$ruc.pem";
-        if (!file_exists($certPath)) {
-            $certPath = dirname(__DIR__) . '/certs/certificate.pem';
-        }
+        $certificadoPath = $data['empresa']['certificado_path'] ?? '';
+        $certContent = null;
 
-        if (!file_exists($certPath)) {
-            throw new Exception("Certificado no encontrado para RUC $ruc");
+        if (strpos($certificadoPath, 'http') === 0) {
+            // Es una URL (ej. firmada de Firebase), descargarlo
+            $certContent = @file_get_contents($certificadoPath);
+            if (!$certContent) {
+                throw new Exception("No se pudo descargar el certificado desde la URL de Storage.");
+            }
+        } else {
+            throw new Exception("Operación abortada: El certificado debe ser una URL válida de Storage por seguridad. No se permiten archivos locales.");
         }
 
         // 2. Inicializar Servicios
-        $sunatService = new SunatService($data['empresa'], file_get_contents($certPath));
+        $sunatService = new SunatService($data['empresa'], $certContent);
         $storageService = new StorageService(dirname(__DIR__) . '/storage/comprobantes');
         $reportService = new ReportService();
         $mapper = new InvoiceMapper();
@@ -137,7 +165,10 @@ function handleFullFlow(): void
         // Generar PDF (no debe bloquear el flujo principal)
         $pdfBase64 = null;
         try {
-            $empresaData = array_merge($data['empresa'] ?? [], ['hash' => $hash ?? '']);
+            $empresaData = array_merge($data['empresa'] ?? [], [
+                'hash' => $hash ?? '',
+                'estado' => $data['venta']['estado'] ?? 'EMITIDO'
+            ]);
             $pdfBase64 = base64_encode($reportService->generatePdf($invoice, $empresaData));
         } catch (\Throwable $e) {
             error_log('Error generando PDF: ' . $e->getMessage());
@@ -180,6 +211,140 @@ function handleFullFlow(): void
         echo json_encode([
             'success' => false,
             'error' => ['message' => $e->getMessage()]
+        ]);
+    }
+}
+
+/**
+ * Endpoint /void - Comunicación de Baja (Anulaciones).
+ */
+function handleVoid(): void
+{
+    try {
+        $input = file_get_contents('php://input');
+        $data = json_decode($input, true);
+
+        if (!$data) {
+            throw new Exception('No JSON data received');
+        }
+
+        // 1. Obtener Certificado
+        $ruc = $data['empresa']['ruc'] ?? '20000000001';
+        $certificadoPath = $data['empresa']['certificado_path'] ?? '';
+        $certContent = null;
+
+        if (strpos($certificadoPath, 'http') === 0) {
+            $certContent = @file_get_contents($certificadoPath);
+            if (!$certContent) {
+                throw new Exception("No se pudo descargar el certificado desde la URL de Storage.");
+            }
+        } else {
+            throw new Exception("Operación abortada: El certificado debe ser una URL válida de Storage por seguridad. No se permiten archivos locales.");
+        }
+
+        // 2. Inicializar Servicios
+        $sunatService = new \App\Services\SunatService($data['empresa'], $certContent);
+        $mapper = new \App\Mappers\VoidedMapper();
+
+        // 3. Mapear y Enviar
+        $voided = $mapper->map($data);
+        $res = $sunatService->send($voided);
+        
+        // 4. Procesar Respuesta
+        $signedXml = $sunatService->getSee()->getFactory()->getLastXml();
+        
+        $response = [
+            'success' => $res->isSuccess(),
+            'xml_base64' => $signedXml ? base64_encode($signedXml) : null,
+        ];
+
+        if (!$res->isSuccess()) {
+            $error = $res->getError();
+            $response['error'] = [
+                'code' => $error ? $error->getCode() : 'UNKNOWN',
+                'message' => $error ? $error->getMessage() : 'Error desconocido de SUNAT'
+            ];
+        } else {
+            // Para Bajas, SUNAT devuelve un Ticket
+            $response['ticket'] = $res->getTicket();
+        }
+
+        ob_clean();
+        echo json_encode($response);
+
+    } catch (\Throwable $e) {
+        http_response_code(500);
+        ob_clean();
+        echo json_encode([
+            'success' => false,
+            'error'   => ['message' => $e->getMessage()],
+        ]);
+    }
+}
+
+/**
+ * Endpoint /summary - Resumen Diario de Boletas.
+ */
+function handleSummary(): void
+{
+    try {
+        $input = file_get_contents('php://input');
+        $data = json_decode($input, true);
+
+        if (!$data) {
+            throw new Exception('No JSON data received');
+        }
+
+        // 1. Obtener Certificado
+        $ruc = $data['empresa']['ruc'] ?? '20000000001';
+        $certificadoPath = $data['empresa']['certificado_path'] ?? '';
+        $certContent = null;
+
+        if (strpos($certificadoPath, 'http') === 0) {
+            $certContent = @file_get_contents($certificadoPath);
+            if (!$certContent) {
+                throw new Exception("No se pudo descargar el certificado desde la URL de Storage.");
+            }
+        } else {
+            throw new Exception("Operación abortada: El certificado debe ser una URL válida de Storage por seguridad. No se permiten archivos locales.");
+        }
+
+        // 2. Inicializar Servicios
+        $sunatService = new \App\Services\SunatService($data['empresa'], $certContent);
+        $mapper = new \App\Mappers\SummaryMapper();
+
+        // 3. Mapear y Enviar
+        $summary = $mapper->map($data);
+        $res = $sunatService->send($summary);
+        
+        // 4. Procesar Respuesta
+        $signedXml = $sunatService->getSee()->getFactory()->getLastXml();
+        
+        $response = [
+            'success' => $res->isSuccess(),
+            'xml_base64' => $signedXml ? base64_encode($signedXml) : null,
+        ];
+
+        if (!$res->isSuccess()) {
+            $error = $res->getError();
+            $response['error'] = [
+                'code' => $error ? $error->getCode() : 'UNKNOWN',
+                'message' => $error ? $error->getMessage() : 'Error desconocido de SUNAT'
+            ];
+        } else {
+            // Para Resúmenes, SUNAT devuelve un Ticket
+            $response['ticket'] = $res->getTicket();
+        }
+
+        ob_clean();
+        echo json_encode($response);
+
+    } catch (\Throwable $e) {
+        http_response_code(500);
+        ob_clean();
+        echo json_encode([
+            'success' => false,
+            'error'   => ['message' => $e->getMessage()],
         ]);
     }
 }

@@ -98,6 +98,7 @@ class ReportService
             ],
             'user' => [
                 'header'  => $empresaData['razon_social'] ?? 'EMPRESA',
+                'estado' => $empresaData['estado'] ?? 'EMITIDO',
                 'color' => $empresaData['color_pdf'] ?? '#000000',
                 'mostrar_cuentas' => (bool)($empresaData['mostrar_cuentas'] ?? true),
                 'qr_size' => $empresaData['qr_size'] ?? '120',

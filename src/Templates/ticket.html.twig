@@ -74,9 +74,27 @@
         
         .footer-text { font-size: 7.5px; margin-top: 5px; text-align: center; }
         .hash { font-family: monospace; font-size: 6.5px; word-break: break-all; margin-bottom: 4px;}
+
+        /* MARCA DE AGUA PARA ANULADO */
+        .watermark {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-45deg);
+            font-size: 60px; /* Más pequeño para ticket */
+            color: rgba(255, 0, 0, 0.15);
+            font-weight: bold;
+            z-index: -1000;
+            white-space: nowrap;
+            pointer-events: none;
+        }
     </style>
 </head>
 <body>
+    {% if params.user.estado == 'ANULADO' %}
+        <div class="watermark">ANULADO</div>
+    {% endif %}
+
     <div class="container">
         {% set cp = doc.company %}
         {% set cl = doc.client %}
@@ -95,7 +113,12 @@
         </div>
 
         <div class="center doc-header">
-            <div class="bold uppercase">{{ name }} ELECTRÓNICA</div>
+            <div class="bold uppercase">
+                {{ name|default('NOTA DE VENTA') }}
+                {% if doc.tipoDoc == '01' or doc.tipoDoc == '03' %}
+                    ELECTRÓNICA
+                {% endif %}
+            </div>
             <div class="bold" style="font-size: 10px;">{{ doc.serie }}-{{ doc.correlativo }}</div>
         </div>
 
@@ -163,6 +186,7 @@
         <div class="separator"></div>
 
         <!-- QR Y PIE DE PÁGINA SUNAT -->
+        {% if doc.tipoDoc == '01' or doc.tipoDoc == '03' %}
         <div class="qr-section">
             <img src="{{ qrCode(doc)|image_b64('svg+xml') }}">
             {% if params.system.hash %}
@@ -175,6 +199,13 @@
             Consulte su documento en: <b>www.sunat.gob.pe</b><br>
             ¡GRACIAS POR SU PREFERENCIA!
         </div>
+        {% else %}
+        <div class="footer-text" style="margin-top: 10px; font-weight: bold; border-top: 1px dashed #000; padding-top: 5px;">
+            ESTE DOCUMENTO NO ES UN COMPROBANTE DE PAGO.<br>
+            Solo válido para control interno.<br>
+            ¡GRACIAS POR SU PREFERENCIA!
+        </div>
+        {% endif %}
     </div>
 </body>
 </html>

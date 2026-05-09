@@ -86,9 +86,27 @@
         .text-center { text-align: center; }
         .text-right { text-align: right; }
         .bold { font-weight: bold; }
+
+        /* MARCA DE AGUA PARA ANULADO */
+        .watermark {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-45deg);
+            font-size: 100px;
+            color: rgba(255, 0, 0, 0.15);
+            font-weight: bold;
+            z-index: -1000;
+            white-space: nowrap;
+            pointer-events: none;
+        }
     </style>
 </head>
 <body>
+    {% if params.user.estado == 'ANULADO' %}
+        <div class="watermark">ANULADO</div>
+    {% endif %}
+    
     {% set cp = doc.company %}
     {% set cl = doc.client %}
     {% set moneda = doc.tipoMoneda|catalog('02') %}
@@ -114,7 +132,12 @@
                 <td width="30%">
                     <div class="document-box">
                         <div style="font-size: 11px;">RUC {{ cp.ruc }}</div>
-                        <span style="font-size: 13px; font-weight: bold; margin: 5px 0; display: block;">{{ name|upper }} ELECTRÓNICA</span>
+                        <span style="font-size: 13px; font-weight: bold; margin: 5px 0; display: block;">
+                            {{ name|default('NOTA DE VENTA')|upper }}
+                            {% if doc.tipoDoc == '01' or doc.tipoDoc == '03' %}
+                                ELECTRÓNICA
+                            {% endif %}
+                        </span>
                         <div style="font-size: 15px; font-weight: bold;">{{ doc.serie }}-{{ doc.correlativo }}</div>
                     </div>
                 </td>
@@ -212,6 +235,7 @@
         </table>
 
         <!-- PIE DE PÁGINA -->
+        {% if doc.tipoDoc == '01' or doc.tipoDoc == '03' %}
         <table class="qr-table">
             <tr>
                 <td width="15%">
@@ -225,6 +249,12 @@
                 </td>
             </tr>
         </table>
+        {% else %}
+        <div style="margin-top: 30px; border-top: 1px solid #eee; padding-top: 15px; text-align: center; font-size: 10px; color: #555;">
+            <strong>ESTE DOCUMENTO NO ES UN COMPROBANTE DE PAGO.</strong><br>
+            Solo válido para control interno.
+        </div>
+        {% endif %}
     </div>
 </body>
 </html>
