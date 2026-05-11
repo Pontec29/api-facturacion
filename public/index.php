@@ -97,6 +97,8 @@ function handlePdfOnly(): void
         $empresaData = array_merge($data['empresa'] ?? [], [
             'hash'        => $data['hash'] ?? '',
             'formato_pdf' => $data['formato_pdf'] ?? ($data['empresa']['formato_pdf'] ?? 'A4'),
+            'usuario_nombre_ticket' => $data['venta']['usuario_nombre_ticket'] ?? 'Sistema',
+            'usuario_nombre_a4' => $data['venta']['usuario_nombre_a4'] ?? 'Sistema',
         ]);
 
         $pdfContent = $reportService->generatePdf($invoice, $empresaData);
@@ -167,7 +169,9 @@ function handleFullFlow(): void
         try {
             $empresaData = array_merge($data['empresa'] ?? [], [
                 'hash' => $hash ?? '',
-                'estado' => $data['venta']['estado'] ?? 'EMITIDO'
+                'estado' => $data['venta']['estado'] ?? 'EMITIDO',
+                'usuario_nombre_ticket' => $data['venta']['usuario_nombre_ticket'] ?? 'Sistema',
+                'usuario_nombre_a4' => $data['venta']['usuario_nombre_a4'] ?? 'Sistema',
             ]);
             $pdfBase64 = base64_encode($reportService->generatePdf($invoice, $empresaData));
         } catch (\Throwable $e) {

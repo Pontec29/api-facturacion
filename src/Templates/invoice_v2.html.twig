@@ -175,6 +175,15 @@
                 <td>:</td>
                 <td>{{ doc.formaPago ? doc.formaPago.tipo|upper : 'CONTADO' }}</td>
             </tr>
+            <tr>
+                <td class="label-cell">CAJERO</td>
+                <td>:</td>
+                <td>{{ params.user.usuario_nombre_a4|upper }}</td>
+                
+                <td class="label-cell"></td>
+                <td></td>
+                <td></td>
+            </tr>
         </table>
 
         <!-- ITEMS -->
@@ -200,7 +209,7 @@
                             <div class="bold">{{ det.descripcion }}</div>
                         </td>
                         <td class="text-right">{{ (det.mtoPrecioUnitario|default(0))|n_format }}</td>
-                        <td class="text-right"><strong>{{ (det.mtoImpVenta|default(0))|n_format }}</strong></td>
+                        <td class="text-right"><strong>{{ (det.mtoValorVenta + det.igv)|n_format }}</strong></td>
                     </tr>
                     {% endfor %}
                 </tbody>

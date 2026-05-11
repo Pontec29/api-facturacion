@@ -130,6 +130,7 @@
             {% if cl.address and cl.address.direccion %}
             <tr><td style="font-weight: bold;">DIR.:</td><td class="uppercase">{{ cl.address.direccion }}</td></tr>
             {% endif %}
+            <tr><td style="font-weight: bold;">CAJERO:</td><td class="uppercase">{{ params.user.usuario_nombre_ticket }}</td></tr>
         </table>
 
         <div class="separator"></div>
@@ -151,7 +152,7 @@
                         <div class="uppercase bold">{{ det.descripcion }}</div>
                         <div style="font-size: 7.5px; color: #333;">P.U: {{ moneda }} {{ (det.mtoPrecioUnitario|default(0))|n_format }}</div>
                     </td>
-                    <td class="right">{{ moneda }} {{ (det.mtoImpVenta|default(0))|n_format }}</td>
+                    <td class="right">{{ moneda }} {{ (det.mtoValorVenta + det.igv)|n_format }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
