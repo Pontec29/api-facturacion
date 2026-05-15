@@ -1,0 +1,29 @@
+name: Deploy Facturacion to Server
+
+on:
+  push:
+    branches: [ "main" ] # Cambia a 'master' si es tu rama principal
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+    - name: SSH and Deploy
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.SSH_HOST }}
+        username: ${{ secrets.SSH_USERNAME }}
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
+        port: ${{ secrets.SSH_PORT || 22 }}
+        script: |
+          # Navegar a la carpeta de Facturación en el servidor
+          cd /home/pos-2026/api-facturacion
+          
+          # Actualizar código
+          git pull origin main
+          
+          # Ir a la carpeta del API donde está el docker-compose.yml maestro
+          cd ../pos-backend
+          
+          # Reconstruir y levantar contenedores
+          docker compose up -d --build
