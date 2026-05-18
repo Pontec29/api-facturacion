@@ -81,44 +81,47 @@ class InvoiceMapper
             $sumIgv += $igv;
         }
 
-        // 4. Comprobante
-        $totalGravado = round((float)($data['venta']['total_gravado'] ?? $sumBaseIgv), 2);
-        $totalIgv = round((float)($data['venta']['total_igv'] ?? $sumIgv), 2);
-        $total = round((float)($data['venta']['total'] ?? ($totalGravado + $totalIgv)), 2);
+        // 4. Totales
+        $totalGravado   = round((float)($data['venta']['total_gravado']   ?? $sumBaseIgv), 2);
+        $totalIgv       = round((float)($data['venta']['total_igv']       ?? $sumIgv), 2);
+        $totalExonerado = round((float)($data['venta']['total_exonerado'] ?? 0), 2);
+        $totalInafecto  = round((float)($data['venta']['total_inafecto']  ?? 0), 2);
+        $total          = round((float)($data['venta']['total']           ?? ($totalGravado + $totalIgv)), 2);
+        $tipoDoc = $data['venta']['tipo_comprobante'] ?? '01';
 
-        // 4. Crear factura y asignar totales
+        // Tipo de operación según tipo de comprobante (catálogo 51 SUNAT)
+        // 0101 = Venta interna (Facturas)
+        // 0200 = Venta interna (Boletas)
+        $tipoOperacion = $tipoDoc === '03' ? '0200' : '0101';
+
+        // Fecha de emisión: Java la envía en venta.fecha_emision (YYYY-MM-DD)
+        $fechaEmision = isset($data['venta']['fecha_emision'])
+            ? new \DateTime($data['venta']['fecha_emision'])
+            : new \DateTime();
+
+        // 5. Crear comprobante
         $invoice = new Invoice();
         $invoice->setUblVersion('2.1')
-            ->setTipoOperacion('0101') // Venta interna
-            ->setTipoDoc($data['venta']['tipo_comprobante'] ?? '01')
+            ->setTipoOperacion($tipoOperacion)
+            ->setTipoDoc($tipoDoc)
             ->setSerie($data['venta']['serie'] ?? 'F001')
             ->setCorrelativo($data['venta']['numero'] ?? '1')
-            ->setFechaEmision(new \DateTime($data['venta']['fecha_emision'] ?? 'now'))
+            ->setFechaEmision($fechaEmision)
             ->setTipoMoneda($data['venta']['moneda'] ?? 'PEN')
             ->setClient($client)
             ->setCompany($company)
             ->setMtoOperGravadas(number_format($totalGravado, 2, '.', ''))
-            ->setMtoOperExoneradas(number_format($data['venta']['total_exonerado'] ?? 0, 2, '.', ''))
-            ->setMtoOperInafectas(number_format($data['venta']['total_inafecto'] ?? 0, 2, '.', ''))
+            ->setMtoOperExoneradas(number_format($totalExonerado, 2, '.', ''))
+            ->setMtoOperInafectas(number_format($totalInafecto, 2, '.', ''))
             ->setMtoIGV(number_format($totalIgv, 2, '.', ''))
             ->setTotalImpuestos(number_format($totalIgv, 2, '.', ''))
-            ->setValorVenta(number_format($totalGravado, 2, '.', ''))
+            ->setValorVenta(number_format($totalGravado + $totalExonerado + $totalInafecto, 2, '.', ''))
             ->setSubTotal(number_format($total, 2, '.', ''))
             ->setMtoImpVenta(number_format($total, 2, '.', ''))
             ->setDetails($details);
 
-        // 5. Leyendas (Monto en letras)
-        $formatter = new \Luecano\NumeroALetras\NumeroALetras();
-        $totalLetras = $formatter->toInvoice($total, 2, $data['venta']['moneda'] === 'USD' ? 'DÓLARES' : 'SOLES');
-        
-        $invoice->setLegends([
-            (new Legend())
-                ->setCode('1000')
-                ->setValue($totalLetras)
-        ]);
-
-        // Pago
-        if (($data['venta']['forma_pago'] ?? 'CONTADO') === 'CONTADO') {
+        // 6. Forma de pago
+        if (strtoupper($data['venta']['forma_pago'] ?? 'CONTADO') === 'CONTADO') {
             $invoice->setFormaPago(new FormaPagoContado());
         } else {
             $invoice->setFormaPago(new FormaPagoCredito($total));
@@ -133,9 +136,13 @@ class InvoiceMapper
             }
         }
 
-        // Leyendas
+        // 7. Leyenda: monto en letras (se genera aquí, una sola vez)
+        $formatter   = new \Luecano\NumeroALetras\NumeroALetras();
+        $simbolo     = strtoupper($data['venta']['moneda'] ?? 'PEN') === 'USD' ? 'DÓLARES' : 'SOLES';
+        $totalLetras = $formatter->toInvoice($total, 2, $simbolo);
+
         $invoice->setLegends([
-            (new Legend())->setCode('1000')->setValue($data['venta']['total_letras'] ?? 'SOLES')
+            (new Legend())->setCode('1000')->setValue($totalLetras)
         ]);
 
         return $invoice;

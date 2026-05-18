@@ -65,7 +65,25 @@ if ($path === '/summary') {
     exit;
 }
 
-// Endpoint / (raíz) => Flujo completo: firma + envío SUNAT + PDF
+// Endpoint /sign => Fase 1: solo genera y firma el XML, lo devuelve en base64 (sin enviar a SUNAT)
+if ($path === '/sign') {
+    handleSign();
+    exit;
+}
+
+// Endpoint /retry => Fase 2: envía un XML ya firmado a SUNAT (sin regenerar nada)
+if ($path === '/retry') {
+    handleRetry();
+    exit;
+}
+
+// Endpoint /debug-xml => Devuelve el XML firmado en texto plano para inspección
+if ($path === '/debug-xml') {
+    handleDebugXml();
+    exit;
+}
+
+// Endpoint / (raíz) => Flujo completo legacy: firma + envío SUNAT + PDF (se mantiene por compatibilidad)
 handleFullFlow();
 
 // ============================================================================
@@ -107,6 +125,58 @@ function handlePdfOnly(): void
         echo json_encode([
             'success'    => true,
             'pdf_base64' => base64_encode($pdfContent),
+        ]);
+
+    } catch (Throwable $e) {
+        http_response_code(500);
+        ob_clean();
+        echo json_encode([
+            'success' => false,
+            'error'   => ['message' => $e->getMessage()],
+        ]);
+    }
+}
+
+/**
+ * Endpoint /sign - Fase 1: genera y firma el XML electrónicamente.
+ * NO envía a SUNAT. Devuelve el XML firmado en base64.
+ * El Java guarda ese XML en Storage y marca la venta como XML_GENERADO.
+ */
+function handleSign(): void
+{
+    try {
+        $input = file_get_contents('php://input');
+        $data  = json_decode($input, true);
+
+        if (!$data) {
+            throw new Exception('No JSON data received');
+        }
+
+        $certificadoPath = $data['empresa']['certificado_path'] ?? '';
+        if (strpos($certificadoPath, 'http') !== 0) {
+            throw new Exception('El certificado debe ser una URL válida de Storage.');
+        }
+        $certContent = @file_get_contents($certificadoPath);
+        if (!$certContent) {
+            throw new Exception('No se pudo descargar el certificado desde Storage.');
+        }
+
+        $sunatService = new SunatService($data['empresa'], $certContent);
+        $mapper       = new InvoiceMapper();
+
+        // Mapear y firmar el documento (sin enviar)
+        $invoice   = $mapper->map($data);
+        $see       = $sunatService->getSee();
+        $signedXml = $see->getXmlSigned($invoice);
+
+        if (!$signedXml) {
+            throw new Exception('No se pudo generar el XML firmado.');
+        }
+
+        ob_clean();
+        echo json_encode([
+            'success'    => true,
+            'xml_base64' => base64_encode($signedXml),
         ]);
 
     } catch (Throwable $e) {
@@ -215,6 +285,78 @@ function handleFullFlow(): void
         echo json_encode([
             'success' => false,
             'error' => ['message' => $e->getMessage()]
+        ]);
+    }
+}
+
+/**
+ * Endpoint /retry - Reenvía un XML ya firmado a SUNAT sin regenerarlo.
+ * Recibe: { empresa: {...}, xml_base64: "..." }
+ * Úsalo cuando SUNAT estaba caído y el XML ya existe en Storage.
+ */
+function handleRetry(): void
+{
+    try {
+        $input = file_get_contents('php://input');
+        $data = json_decode($input, true);
+
+        if (!$data || empty($data['xml_base64'])) {
+            throw new Exception('Se requiere xml_base64 en el payload');
+        }
+
+        $signedXml = base64_decode($data['xml_base64']);
+        if (!$signedXml) {
+            throw new Exception('xml_base64 inválido o vacío');
+        }
+
+        $certificadoPath = $data['empresa']['certificado_path'] ?? '';
+        if (strpos($certificadoPath, 'http') !== 0) {
+            throw new Exception('El certificado debe ser una URL válida de Storage.');
+        }
+        $certContent = @file_get_contents($certificadoPath);
+        if (!$certContent) {
+            throw new Exception('No se pudo descargar el certificado desde Storage.');
+        }
+
+        // Usar Greenter See para enviar — maneja SOAP/SSL correctamente
+        $sunatService = new SunatService($data['empresa'], $certContent);
+        $see = $sunatService->getSee();
+
+        $res = $see->sendXmlFile($signedXml);
+
+        if ($res === null) {
+            throw new Exception('No se obtuvo respuesta del servicio SUNAT.');
+        }
+
+        $hash = '';
+        if (preg_match('/<ds:DigestValue>(.*?)<\/ds:DigestValue>/', $signedXml, $matches)) {
+            $hash = $matches[1];
+        }
+
+        $response = ['success' => $res->isSuccess()];
+        if ($res->isSuccess()) {
+            $cdrResponse = $res->getCdrResponse();
+            $response['hash']           = $hash;
+            $response['sunat_code']     = $cdrResponse ? $cdrResponse->getCode() : null;
+            $response['sunat_response'] = $cdrResponse ? $cdrResponse->getDescription() : null;
+            $response['cdr_base64']     = $res->getCdrZip() ? base64_encode($res->getCdrZip()) : null;
+        } else {
+            $error = $res->getError();
+            $response['error'] = [
+                'code'    => $error ? $error->getCode() : 'UNKNOWN',
+                'message' => $error ? $error->getMessage() : 'Error desconocido de SUNAT',
+            ];
+        }
+
+        ob_clean();
+        echo json_encode($response);
+
+    } catch (Throwable $e) {
+        http_response_code(500);
+        ob_clean();
+        echo json_encode([
+            'success' => false,
+            'error'   => ['message' => $e->getMessage()],
         ]);
     }
 }
@@ -350,5 +492,33 @@ function handleSummary(): void
             'success' => false,
             'error'   => ['message' => $e->getMessage()],
         ]);
+    }
+}
+
+function handleDebugXml(): void
+{
+    try {
+        $input = file_get_contents('php://input');
+        $data  = json_decode($input, true);
+        if (!$data) throw new Exception('No JSON data received');
+
+        $certificadoPath = $data['empresa']['certificado_path'] ?? '';
+        if (strpos($certificadoPath, 'http') !== 0) throw new Exception('certificado_path debe ser URL');
+        $certContent = @file_get_contents($certificadoPath);
+        if (!$certContent) throw new Exception('No se pudo descargar el certificado');
+
+        $sunatService = new SunatService($data['empresa'], $certContent);
+        $mapper       = new InvoiceMapper();
+        $invoice      = $mapper->map($data);
+        $see          = $sunatService->getSee();
+        $signedXml    = $see->getXmlSigned($invoice);
+
+        header('Content-Type: application/xml');
+        ob_clean();
+        echo $signedXml;
+    } catch (Throwable $e) {
+        http_response_code(500);
+        ob_clean();
+        echo json_encode(['success' => false, 'error' => ['message' => $e->getMessage()]]);
     }
 }

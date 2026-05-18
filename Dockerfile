@@ -50,6 +50,11 @@ COPY . .
 # Instalar dependencias de composer
 RUN composer update --no-dev --optimize-autoloader --no-audit --ignore-platform-reqs
 
+# Parche SUNAT: quitar atributo languageLocaleID de <cbc:Note> (NoteType no lo acepta)
+RUN sed -i \
+    's|<cbc:Note languageLocaleID="{{ leg.code }}">|<cbc:Note>|g' \
+    vendor/greenter/greenter/packages/xml/src/Xml/Templates/invoice2.1.xml.twig
+
 EXPOSE 80
 
 CMD ["apache2-foreground"]
