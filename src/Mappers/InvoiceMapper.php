@@ -82,17 +82,20 @@ class InvoiceMapper
         }
 
         // 4. Totales
-        $totalGravado   = round((float)($data['venta']['total_gravado']   ?? $sumBaseIgv), 2);
-        $totalIgv       = round((float)($data['venta']['total_igv']       ?? $sumIgv), 2);
-        $totalExonerado = round((float)($data['venta']['total_exonerado'] ?? 0), 2);
-        $totalInafecto  = round((float)($data['venta']['total_inafecto']  ?? 0), 2);
-        $total          = round((float)($data['venta']['total']           ?? ($totalGravado + $totalIgv)), 2);
+        $totalGravado    = round((float)($data['venta']['total_gravado']    ?? $sumBaseIgv), 2);
+        $totalIgv        = round((float)($data['venta']['total_igv']        ?? $sumIgv), 2);
+        $totalExonerado  = round((float)($data['venta']['total_exonerado']  ?? 0), 2);
+        $totalInafecto   = round((float)($data['venta']['total_inafecto']   ?? 0), 2);
+        $totalExportacion = round((float)($data['venta']['total_exportacion'] ?? 0), 2);
+        $total           = round((float)($data['venta']['total']            ?? ($totalGravado + $totalIgv)), 2);
         $tipoDoc = $data['venta']['tipo_comprobante'] ?? '01';
 
-        // Tipo de operación según tipo de comprobante (catálogo 51 SUNAT)
-        // 0101 = Venta interna (Facturas)
-        // 0200 = Venta interna (Boletas)
-        $tipoOperacion = $tipoDoc === '03' ? '0200' : '0101';
+        // Tipo de operación según catálogo 51 SUNAT:
+        //   0101 = Venta interna (Factura y Boleta)
+        //   0200 = Exportación de bienes (Factura y Boleta)
+        // Venta interna usa 0101 para AMBOS comprobantes. Solo se marca exportación
+        // cuando realmente hay ítems con afectación 40.
+        $tipoOperacion = $totalExportacion > 0 ? '0200' : '0101';
 
         // Fecha de emisión: Java la envía en venta.fecha_emision (YYYY-MM-DD)
         $fechaEmision = isset($data['venta']['fecha_emision'])
@@ -110,12 +113,24 @@ class InvoiceMapper
             ->setTipoMoneda($data['venta']['moneda'] ?? 'PEN')
             ->setClient($client)
             ->setCompany($company)
-            ->setMtoOperGravadas(number_format($totalGravado, 2, '.', ''))
-            ->setMtoOperExoneradas(number_format($totalExonerado, 2, '.', ''))
-            ->setMtoOperInafectas(number_format($totalInafecto, 2, '.', ''))
-            ->setMtoIGV(number_format($totalIgv, 2, '.', ''))
+            ->setMtoOperGravadas(number_format($totalGravado, 2, '.', ''));
+
+        // Solo incluir operaciones exoneradas/inafectas/exportación si tienen monto > 0.
+        // SUNAT rechaza (regla 2642) cuando se declaran TaxSubtotals vacíos mezclados con
+        // ítems gravados (TaxExemptionReasonCode=10).
+        if ($totalExonerado > 0) {
+            $invoice->setMtoOperExoneradas(number_format($totalExonerado, 2, '.', ''));
+        }
+        if ($totalInafecto > 0) {
+            $invoice->setMtoOperInafectas(number_format($totalInafecto, 2, '.', ''));
+        }
+        if ($totalExportacion > 0) {
+            $invoice->setMtoOperExportacion(number_format($totalExportacion, 2, '.', ''));
+        }
+
+        $invoice->setMtoIGV(number_format($totalIgv, 2, '.', ''))
             ->setTotalImpuestos(number_format($totalIgv, 2, '.', ''))
-            ->setValorVenta(number_format($totalGravado + $totalExonerado + $totalInafecto, 2, '.', ''))
+            ->setValorVenta(number_format($totalGravado + $totalExonerado + $totalInafecto + $totalExportacion, 2, '.', ''))
             ->setSubTotal(number_format($total, 2, '.', ''))
             ->setMtoImpVenta(number_format($total, 2, '.', ''))
             ->setDetails($details);

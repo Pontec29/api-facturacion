@@ -31,6 +31,10 @@ RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
     curl \
     fileinfo
 
+# Habilitar provider legacy de OpenSSL para certificados .p12 generados con algoritmos antiguos
+COPY openssl-legacy.cnf /etc/ssl/openssl-legacy.cnf
+ENV OPENSSL_CONF=/etc/ssl/openssl-legacy.cnf
+
 # Habilitar mod_rewrite de Apache
 RUN a2enmod rewrite
 
