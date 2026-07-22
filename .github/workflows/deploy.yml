@@ -19,8 +19,9 @@ jobs:
           # Navegar a la carpeta de Facturación en el servidor
           cd /home/pos-2026/api-facturacion
           
-          # Actualizar código
-          git pull origin main
+          # Forzar la actualización limpia del código (evita conflictos por archivos locales)
+          git fetch origin
+          git reset --hard origin/main
           
           # Ir a la carpeta del API donde está el docker-compose.yml maestro
           cd ../pos-backend
