@@ -122,7 +122,7 @@
                     {% endif %}
                 </td>
                 <td width="50%" style="padding: 0 10px; text-align: center;"> <!-- TEXTO CENTRADO -->
-                    <div class="company-name">{{ cp.razonSocial }}</div>
+                    <div class="company-name">{{ cp.nombreComercial|default('', true) is empty ? cp.razonSocial : cp.nombreComercial }}</div>
                     <div style="font-size: 10px; color: #333; margin-top: 3px;">
                         <strong>RUC: {{ cp.ruc }}</strong><br>
                         {{ cp.address.direccion }}<br>

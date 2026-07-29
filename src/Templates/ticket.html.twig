@@ -106,7 +106,7 @@
             {% if params.system.logo %}
                 <img src="{{ params.system.logo|image_b64 }}" style="max-height: 48px; max-width: 150px; margin-bottom: 5px;">
             {% endif %}
-            <div class="company-name uppercase">{{ cp.razonSocial }}</div>
+            <div class="company-name uppercase">{{ cp.nombreComercial|default('', true) is empty ? cp.razonSocial : cp.nombreComercial }}</div>
             <div class="bold">RUC: {{ cp.ruc }}</div>
             <div style="font-size: 7.5px;">{{ cp.address.direccion|upper }}</div>
             <div style="font-size: 7.5px;">{{ cp.address.distrito|upper }} - {{ cp.address.provincia|upper }}</div>
