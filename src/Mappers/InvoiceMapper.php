@@ -97,10 +97,13 @@ class InvoiceMapper
         // cuando realmente hay ítems con afectación 40.
         $tipoOperacion = $totalExportacion > 0 ? '0200' : '0101';
 
-        // Fecha de emisión: Java la envía en venta.fecha_emision (YYYY-MM-DD)
+        // Fecha de emisión: Java la envía en venta.fecha_emision (YYYY-MM-DD).
+        // Se fija explícitamente America/Lima para no depender del timezone del SO/php.ini
+        // del servidor (el VPS puede estar en UTC u otra zona distinta a Perú).
+        $timezoneLima = new \DateTimeZone('America/Lima');
         $fechaEmision = isset($data['venta']['fecha_emision'])
-            ? new \DateTime($data['venta']['fecha_emision'])
-            : new \DateTime();
+            ? new \DateTime($data['venta']['fecha_emision'], $timezoneLima)
+            : new \DateTime('now', $timezoneLima);
 
         // 5. Crear comprobante
         $invoice = new Invoice();
@@ -145,7 +148,7 @@ class InvoiceMapper
                 foreach ($data['venta']['cuotas'] as $c) {
                     $cuotas[] = (new \Greenter\Model\Sale\FormaPagos\Cuota())
                         ->setMonto(round((float)$c['monto'], 2))
-                        ->setFechaPago(new DateTime($c['fecha_pago']));
+                        ->setFechaPago(new DateTime($c['fecha_pago'], $timezoneLima));
                 }
                 $invoice->setCuotas($cuotas);
             }

@@ -7,6 +7,9 @@
 
 require dirname(__DIR__) . '/vendor/autoload.php';
 
+// Fija la zona horaria del proceso a Perú, independiente de la zona horaria del SO del servidor.
+date_default_timezone_set('America/Lima');
+
 // Cargar variables de entorno desde .env si existe
 if (file_exists(dirname(__DIR__) . '/.env')) {
     $lines = file(dirname(__DIR__) . '/.env', FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
